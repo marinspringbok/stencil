@@ -30,7 +30,6 @@ dist/
 /polyfills
 /runtime
 /server
-/sys
 /testing
 
 /screenshot/index.js
