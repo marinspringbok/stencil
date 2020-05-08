@@ -1,0 +1,176 @@
+import { basename, join, resolve } from 'path';
+import { fetchUrlSync } from '../fetch/fetch-module-sync';
+import { isBoolean, isString, IS_CASE_SENSITIVE_FILE_NAMES, IS_WEB_WORKER_ENV, noop, normalizePath } from '@utils';
+import { isExternalUrl } from '../fetch/fetch-utils';
+import ts from 'typescript';
+export const patchTypeScriptSys = (loadedTs, config, inMemoryFs) => {
+    const stencilSys = config.sys;
+    loadedTs.sys = loadedTs.sys || {};
+    patchTsSystemFileSystem(config, stencilSys, inMemoryFs, loadedTs.sys);
+    patchTsSystemWatch(stencilSys, loadedTs.sys);
+    patchTsSystemUtils(loadedTs.sys);
+};
+export const patchTsSystemFileSystem = (config, stencilSys, inMemoryFs, tsSys) => {
+    const realpath = (path) => {
+        const rp = stencilSys.realpathSync(path);
+        if (isString(rp)) {
+            return rp;
+        }
+        return path;
+    };
+    const getAccessibleFileSystemEntries = (path) => {
+        try {
+            const entries = stencilSys.readdirSync(path || '.').sort();
+            const files = [];
+            const directories = [];
+            for (const absPath of entries) {
+                // This is necessary because on some file system node fails to exclude
+                // "." and "..". See https://github.com/nodejs/node/issues/4002
+                const stat = inMemoryFs.statSync(absPath);
+                if (!stat) {
+                    continue;
+                }
+                const entry = basename(absPath);
+                if (stat.isFile) {
+                    files.push(entry);
+                }
+                else if (stat.isDirectory) {
+                    directories.push(entry);
+                }
+            }
+            return { files, directories };
+        }
+        catch (e) {
+            return { files: [], directories: [] };
+        }
+    };
+    tsSys.createDirectory = p => {
+        stencilSys.mkdirSync(p);
+    };
+    tsSys.directoryExists = p => {
+        const s = inMemoryFs.statSync(p);
+        return s.isDirectory;
+    };
+    tsSys.fileExists = p => {
+        let filePath = p;
+        if (isExternalUrl(p)) {
+            filePath = getTypescriptPathFromUrl(config.rootDir, tsSys.getExecutingFilePath(), p);
+        }
+        const s = inMemoryFs.statSync(filePath);
+        return !!(s && s.isFile);
+    };
+    tsSys.getDirectories = p => {
+        const items = stencilSys.readdirSync(p);
+        return items.filter(itemPath => {
+            const s = inMemoryFs.statSync(itemPath);
+            return !!(s && s.exists && s.isDirectory);
+        });
+    };
+    tsSys.readDirectory = (path, extensions, exclude, include, depth) => {
+        const cwd = stencilSys.getCurrentDirectory();
+        return ts.matchFiles(path, extensions, exclude, include, IS_CASE_SENSITIVE_FILE_NAMES, cwd, depth, getAccessibleFileSystemEntries, realpath);
+    };
+    tsSys.readFile = p => {
+        let filePath = p;
+        const isUrl = isExternalUrl(p);
+        if (isUrl) {
+            filePath = getTypescriptPathFromUrl(config.rootDir, tsSys.getExecutingFilePath(), p);
+        }
+        let content = inMemoryFs.readFileSync(filePath, { useCache: isUrl });
+        if (typeof content !== 'string' && isUrl) {
+            if (IS_WEB_WORKER_ENV) {
+                content = fetchUrlSync(p);
+                if (typeof content === 'string') {
+                    inMemoryFs.writeFile(filePath, content);
+                }
+            }
+            else {
+                config.logger.error(`ts.sys can only request http resources from within a web worker: ${p}`);
+            }
+        }
+        return content;
+    };
+    tsSys.writeFile = (p, data) => inMemoryFs.writeFile(p, data);
+    return tsSys;
+};
+const patchTsSystemWatch = (stencilSys, tsSys) => {
+    tsSys.watchDirectory = (p, cb, recursive) => {
+        const watcher = stencilSys.watchDirectory(p, filePath => {
+            cb(filePath);
+        }, recursive);
+        return {
+            close() {
+                watcher.close();
+            },
+        };
+    };
+    tsSys.watchFile = (p, cb) => {
+        const watcher = stencilSys.watchFile(p, (filePath, eventKind) => {
+            if (eventKind === 'fileAdd') {
+                cb(filePath, ts.FileWatcherEventKind.Created);
+            }
+            else if (eventKind === 'fileUpdate') {
+                cb(filePath, ts.FileWatcherEventKind.Changed);
+            }
+            else if (eventKind === 'fileDelete') {
+                cb(filePath, ts.FileWatcherEventKind.Deleted);
+            }
+        });
+        return {
+            close() {
+                watcher.close();
+            },
+        };
+    };
+};
+export const getTypescriptPathFromUrl = (rootDir, tsExecutingUrl, url) => {
+    const tsBaseUrl = new URL('..', tsExecutingUrl).href;
+    if (url.startsWith(tsBaseUrl)) {
+        const tsFilePath = url.replace(tsBaseUrl, '/');
+        const tsNodePath = join(rootDir, 'node_modules', 'typescript', tsFilePath);
+        return normalizePath(tsNodePath);
+    }
+    return url;
+};
+export const patchTsSystemUtils = (tsSys) => {
+    if (!tsSys.getCurrentDirectory) {
+        tsSys.getCurrentDirectory = () => '/';
+    }
+    if (!tsSys.args) {
+        tsSys.args = [];
+    }
+    if (!tsSys.newLine) {
+        tsSys.newLine = '\n';
+    }
+    if (!isBoolean(tsSys.useCaseSensitiveFileNames)) {
+        tsSys.useCaseSensitiveFileNames = IS_CASE_SENSITIVE_FILE_NAMES;
+    }
+    if (!tsSys.exit) {
+        tsSys.exit = noop;
+    }
+    if (!tsSys.resolvePath) {
+        tsSys.resolvePath = p => resolve(p);
+    }
+    if (!tsSys.write) {
+        tsSys.write = noop;
+    }
+};
+export const patchTypeScriptGetParsedCommandLineOfConfigFile = (loadedTs, _config) => {
+    const orgGetParsedCommandLineOfConfigFile = loadedTs.getParsedCommandLineOfConfigFile;
+    loadedTs.getParsedCommandLineOfConfigFile = (configFileName, optionsToExtend, host, extendedConfigCache) => {
+        const results = orgGetParsedCommandLineOfConfigFile(configFileName, optionsToExtend, host, extendedConfigCache);
+        // manually filter out any .spec or .e2e files
+        results.fileNames = results.fileNames.filter(f => {
+            // filter e2e tests
+            if (f.includes('.e2e.') || f.includes('/e2e.')) {
+                return false;
+            }
+            // filter spec tests
+            if (f.includes('.spec.') || f.includes('/spec.')) {
+                return false;
+            }
+            return true;
+        });
+        return results;
+    };
+};

@@ -1,0 +1,32 @@
+import { convertValueToLiteral, createStaticGetter } from '../transform-utils';
+import { flatOne, buildError, augmentDiagnosticWithNode, buildWarn } from '@utils';
+import { getDeclarationParameters, isDecoratorNamed } from './decorator-utils';
+import ts from 'typescript';
+export const watchDecoratorsToStatic = (config, diagnostics, decoratedProps, watchable, newMembers) => {
+    const watchers = decoratedProps.filter(ts.isMethodDeclaration).map(method => parseWatchDecorator(config, diagnostics, watchable, method));
+    const flatWatchers = flatOne(watchers);
+    if (flatWatchers.length > 0) {
+        newMembers.push(createStaticGetter('watchers', convertValueToLiteral(flatWatchers)));
+    }
+};
+const isWatchDecorator = isDecoratorNamed('Watch');
+const isPropWillChangeDecorator = isDecoratorNamed('PropWillChange');
+const isPropDidChangeDecorator = isDecoratorNamed('PropDidChange');
+const parseWatchDecorator = (config, diagnostics, watchable, method) => {
+    const methodName = method.name.getText();
+    return method.decorators
+        .filter(decorator => isWatchDecorator(decorator) || isPropWillChangeDecorator(decorator) || isPropDidChangeDecorator(decorator))
+        .map(decorator => {
+        const [propName] = getDeclarationParameters(decorator);
+        if (!watchable.has(propName)) {
+            const dianostic = config.devMode ? buildWarn(diagnostics) : buildError(diagnostics);
+            dianostic.messageText = `@Watch('${propName}') is trying to watch for changes in a property that does not exist.
+        Make sure only properties decorated with @State() or @Prop() are watched.`;
+            augmentDiagnosticWithNode(dianostic, decorator);
+        }
+        return {
+            propName,
+            methodName,
+        };
+    });
+};

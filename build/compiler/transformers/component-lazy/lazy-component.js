@@ -1,0 +1,22 @@
+import { addLazyElementGetter } from './lazy-element-getter';
+import { addStaticStylePropertyToClass } from '../add-static-style';
+import { addWatchers } from '../watcher-meta-transform';
+import { removeStaticMetaProperties } from '../remove-static-meta-properties';
+import { transformHostData } from '../host-data-transform';
+import { updateComponentClass } from '../update-component-class';
+import { updateLazyComponentConstructor } from './lazy-constructor';
+export const updateLazyComponentClass = (transformOpts, styleStatements, classNode, moduleFile, cmp) => {
+    const members = updateLazyComponentMembers(transformOpts, styleStatements, classNode, moduleFile, cmp);
+    return updateComponentClass(transformOpts, classNode, classNode.heritageClauses, members);
+};
+const updateLazyComponentMembers = (transformOpts, styleStatements, classNode, moduleFile, cmp) => {
+    const classMembers = removeStaticMetaProperties(classNode);
+    updateLazyComponentConstructor(classMembers, moduleFile, cmp);
+    addLazyElementGetter(classMembers, moduleFile, cmp);
+    addWatchers(classMembers, cmp);
+    transformHostData(classMembers, moduleFile);
+    if (transformOpts.style === 'static') {
+        addStaticStylePropertyToClass(styleStatements, cmp);
+    }
+    return classMembers;
+};

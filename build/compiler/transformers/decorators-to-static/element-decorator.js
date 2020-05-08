@@ -1,0 +1,24 @@
+import { buildError } from '@utils';
+import { createStaticGetter } from '../transform-utils';
+import { isDecoratorNamed } from './decorator-utils';
+import ts from 'typescript';
+export const elementDecoratorsToStatic = (diagnostics, decoratedMembers, typeChecker, newMembers) => {
+    const elementRefs = decoratedMembers
+        .filter(ts.isPropertyDeclaration)
+        .map(prop => parseElementDecorator(diagnostics, typeChecker, prop))
+        .filter(element => !!element);
+    if (elementRefs.length > 0) {
+        newMembers.push(createStaticGetter('elementRef', ts.createLiteral(elementRefs[0])));
+        if (elementRefs.length > 1) {
+            const error = buildError(diagnostics);
+            error.messageText = `It's not valid to add more than one Element() decorator`;
+        }
+    }
+};
+const parseElementDecorator = (_diagnostics, _typeChecker, prop) => {
+    const elementDecorator = prop.decorators && prop.decorators.find(isDecoratorNamed('Element'));
+    if (elementDecorator == null) {
+        return null;
+    }
+    return prop.name.getText();
+};

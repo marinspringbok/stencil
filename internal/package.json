@@ -1,0 +1,8 @@
+{
+  "name": "@stencil/core/internal",
+  "version": "0.0.0-dev.20200508114528",
+  "description": "Stencil internals only to be imported by the Stencil Compiler. Breaking changes can and will happen at any time.",
+  "main": "index.mjs",
+  "types": "index.d.ts",
+  "private": true
+}

@@ -1,0 +1,15 @@
+import * as d from '@stencil/core/internal';
+export declare let supportsShadow: boolean;
+export declare const plt: d.PlatformRuntime;
+export declare const cssVarShim: d.CssVarShim;
+export declare const supportsListenerOptions = true;
+export declare const supportsConstructibleStylesheets = false;
+export declare const Context: any;
+export declare const setSupportsShadowDom: (supports: boolean) => void;
+export declare function resetPlatform(): void;
+export declare function stopAutoApplyChanges(): void;
+export declare function startAutoApplyChanges(): Promise<void>;
+export declare function registerContext(context: any): void;
+export declare const registerComponents: (Cstrs: d.ComponentTestingConstructor[]) => void;
+export declare function registerModule(bundleId: string, Cstr: any): void;
+export declare const isMemberInElement: (elm: any, memberName: string) => boolean;

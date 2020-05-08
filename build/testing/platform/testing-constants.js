@@ -1,0 +1,10 @@
+export const styles = new Map();
+export const modeResolutionChain = [];
+export const cstrs = new Map();
+export const queuedTicks = [];
+export const queuedWriteTasks = [];
+export const queuedReadTasks = [];
+export const moduleLoaded = new Map();
+export const queuedLoadModules = [];
+export const caughtErrors = [];
+export const hostRefs = new Map();

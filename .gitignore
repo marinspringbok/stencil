@@ -16,21 +16,7 @@ log.txt
 node_modules/
 coverage/
 
-/build/
-/scripts/build/
-dist/
-
 # submodule packages
-/build-conditionals
-/compiler
-/hydrate
-/dev-server
-/internal
-/mock-doc
-/polyfills
-/runtime
-/server
-/testing
 
 /screenshot/index.js
 /screenshot/package.json

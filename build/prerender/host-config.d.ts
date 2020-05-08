@@ -1,0 +1,12 @@
+import * as d from '../declarations';
+export declare function generateHostConfig(config: d.Config, compilerCtx: d.CompilerCtx, outputTarget: d.OutputTargetWww, entryModules: d.EntryModule[], hydrateResults: d.HydrateResults[]): Promise<void>;
+export declare function generateHostRule(outputTarget: d.OutputTargetWww, entryModules: d.EntryModule[], hydrateResults: d.HydrateResults): d.HostRule;
+export declare function generateHostRuleHeaders(outputTarget: d.OutputTargetWww, entryModules: d.EntryModule[], hydrateResults: d.HydrateResults): d.HostRuleHeader[];
+export declare function addBundles(outputTarget: d.OutputTargetWww, entryModules: d.EntryModule[], hostRuleHeaders: d.HostRuleHeader[], components: d.HydrateComponent[]): void;
+export declare function getBundleIds(_entryModules: d.EntryModule[], _components: d.HydrateComponent[]): string[];
+export declare function getUrlFromFilePath(outputTarget: d.OutputTargetWww, filePath: string): string;
+export declare function sortComponents(components: d.HydrateComponent[]): d.HydrateComponent[];
+export declare function formatLinkRelPreloadHeader(url: string): d.HostRuleHeader;
+export declare function mergeUserHostConfig(userHostConfig: d.HostConfig, hostConfig: d.HostConfig): void;
+export declare const DEFAULT_MODE = "md";
+export declare const HOST_CONFIG_FILENAME = "host.config.json";

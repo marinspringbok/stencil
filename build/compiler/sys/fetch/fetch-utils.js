@@ -1,0 +1,111 @@
+import { isFunction, isString, normalizePath } from '@utils';
+import { isCommonDirModuleFile, isTsFile, isTsxFile } from '../resolve/resolve-utils';
+export const httpFetch = (sys, input, init) => {
+    if (sys && isFunction(sys.fetch)) {
+        return sys.fetch(input, init);
+    }
+    return fetch(input, init);
+};
+export const packageVersions = new Map();
+export const known404Urls = new Set();
+export const isExternalUrl = (p) => {
+    if (isString(p)) {
+        p = p.toLowerCase();
+        return p.startsWith('https://') || p.startsWith('http://');
+    }
+    return false;
+};
+export const getRemoteModuleUrl = (sys, module) => {
+    if (sys && isFunction(sys.getRemoteModuleUrl)) {
+        return sys.getRemoteModuleUrl(module);
+    }
+    const nmBaseUrl = 'https://cdn.jsdelivr.net/npm/';
+    const path = `${module.moduleId}${module.version ? '@' + module.version : ''}/${module.path}`;
+    return new URL(path, nmBaseUrl).href;
+};
+export const getRemotePackageJsonUrl = (sys, moduleId) => {
+    return getRemoteModuleUrl(sys, {
+        moduleId,
+        path: `package.json`,
+    });
+};
+export const getStencilRootUrl = (compilerExe) => new URL('../', compilerExe).href;
+export const getStencilModuleUrl = (compilerExe, p) => {
+    p = normalizePath(p);
+    let parts = p.split('/');
+    const nmIndex = parts.lastIndexOf('node_modules');
+    if (nmIndex > -1 && nmIndex < parts.length - 1) {
+        parts = parts.slice(nmIndex + 1);
+        if (parts[0].startsWith('@')) {
+            parts = parts.slice(2);
+        }
+        else {
+            parts = parts.slice(1);
+        }
+        p = parts.join('/');
+    }
+    return new URL('./' + p, getStencilRootUrl(compilerExe)).href;
+};
+export const getStencilInternalDtsUrl = (compilerExe) => getStencilModuleUrl(compilerExe, 'internal/index.d.ts');
+export const getCommonDirUrl = (sys, pkgVersions, dirPath, fileName) => getNodeModuleFetchUrl(sys, pkgVersions, dirPath) + '/' + fileName;
+export const getNodeModuleFetchUrl = (sys, pkgVersions, filePath) => {
+    // /node_modules/lodash/package.json
+    filePath = normalizePath(filePath);
+    // ["node_modules", "lodash", "package.json"]
+    let pathParts = filePath.split('/').filter(p => p.length);
+    const nmIndex = pathParts.lastIndexOf('node_modules');
+    if (nmIndex > -1 && nmIndex < pathParts.length - 1) {
+        pathParts = pathParts.slice(nmIndex + 1);
+    }
+    let moduleId = pathParts.shift();
+    if (moduleId.startsWith('@')) {
+        moduleId += '/' + pathParts.shift();
+    }
+    const path = pathParts.join('/');
+    if (moduleId === '@stencil/core') {
+        const compilerExe = sys.getCompilerExecutingPath();
+        return getStencilModuleUrl(compilerExe, path);
+    }
+    return getRemoteModuleUrl(sys, {
+        moduleId,
+        version: pkgVersions.get(moduleId),
+        path,
+    });
+};
+export const skipFilePathFetch = (filePath) => {
+    if (isTsFile(filePath) || isTsxFile(filePath)) {
+        // don't bother trying to resolve  node_module packages w/ typescript files
+        // they should already be .js files
+        return true;
+    }
+    const pathParts = filePath.split('/');
+    const secondToLast = pathParts[pathParts.length - 2];
+    const lastPart = pathParts[pathParts.length - 1];
+    if (secondToLast === 'node_modules' && isCommonDirModuleFile(lastPart)) {
+        // /node_modules/index.js
+        // /node_modules/lodash.js
+        // we just already know this is bogus, so don't bother
+        return true;
+    }
+    return false;
+};
+export const skipUrlFetch = (url) => 
+// files we just already know not to try to resolve request
+knownUrlSkips.some(knownSkip => url.endsWith(knownSkip));
+const knownUrlSkips = [
+    '/@stencil/core/internal.js',
+    '/@stencil/core/internal.json',
+    '/@stencil/core/internal.mjs',
+    '/@stencil/core/internal/stencil-core.js/index.json',
+    '/@stencil/core/internal/stencil-core.js.json',
+    '/@stencil/core/internal/stencil-core.js/package.json',
+    '/@stencil/core.js',
+    '/@stencil/core.json',
+    '/@stencil/core.mjs',
+    '/@stencil/core.css',
+    '/@stencil/core/index.js',
+    '/@stencil/core/index.json',
+    '/@stencil/core/index.mjs',
+    '/@stencil/core/index.css',
+    '/@stencil/package.json',
+];

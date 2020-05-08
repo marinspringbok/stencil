@@ -1,0 +1,44 @@
+/// <reference types="node" />
+import { Diagnostic, Logger, LoggerTimeSpan } from '../../declarations';
+export declare function createNodeLogger(prcs: NodeJS.Process): NodeLogger;
+export declare class NodeLogger implements Logger {
+    private prcs;
+    colors: boolean;
+    private _level;
+    private writeLogQueue;
+    buildLogFilePath: string;
+    constructor(prcs: NodeJS.Process);
+    get level(): string;
+    set level(l: string);
+    info(...msg: any[]): void;
+    infoPrefix(lines: string[]): void;
+    warn(...msg: any[]): void;
+    warnPrefix(lines: string[]): void;
+    error(...msg: any[]): void;
+    errorPrefix(lines: string[]): void;
+    debug(...msg: any[]): void;
+    debugPrefix(lines: string[]): void;
+    timespanStart(startMsg: string, debug: boolean, appendTo: string[]): void;
+    timespanFinish(finishMsg: string, timeSuffix: string, color: 'red', bold: boolean, newLineSuffix: boolean, debug: boolean, appendTo: string[]): void;
+    private queueWriteLog;
+    writeLogs(append: boolean): void;
+    color(msg: string, colorName: 'red' | 'green' | 'yellow' | 'blue' | 'magenta' | 'cyan' | 'gray'): any;
+    red(msg: string): string;
+    green(msg: string): string;
+    yellow(msg: string): string;
+    blue(msg: string): string;
+    magenta(msg: string): string;
+    cyan(msg: string): string;
+    gray(msg: string): string;
+    bold(msg: string): string;
+    dim(msg: string): string;
+    bgRed(msg: string): string;
+    private shouldLog;
+    createTimeSpan(startMsg: string, debug?: boolean, appendTo?: string[]): LoggerTimeSpan;
+    printDiagnostics(diagnostics: Diagnostic[], cwd?: string): void;
+    printDiagnostic(diagnostic: Diagnostic, cwd?: string): any[];
+    highlightError(errorLine: string, errorCharStart: number, errorLength: number): string;
+    javaScriptSyntaxHighlight(text: string): string;
+    cssSyntaxHighlight(text: string): string;
+}
+export declare function wordWrap(msg: any[], columns: number): any[];

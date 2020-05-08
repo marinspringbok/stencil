@@ -1,0 +1,12 @@
+import * as d from '@stencil/core/internal';
+import { QueuedLoadModule } from './testing-task-queue';
+export declare const styles: d.StyleMap;
+export declare const modeResolutionChain: d.ResolutionHandler[];
+export declare const cstrs: Map<string, d.ComponentTestingConstructor>;
+export declare const queuedTicks: Function[];
+export declare const queuedWriteTasks: d.RafCallback[];
+export declare const queuedReadTasks: d.RafCallback[];
+export declare const moduleLoaded: Map<any, any>;
+export declare const queuedLoadModules: QueuedLoadModule[];
+export declare const caughtErrors: Error[];
+export declare const hostRefs: Map<d.RuntimeRef, d.HostRef>;

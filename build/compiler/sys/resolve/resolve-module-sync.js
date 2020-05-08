@@ -1,0 +1,98 @@
+import { COMMON_DIR_FILENAMES, getNodeModulePath, getCommonDirName, isCommonDirModuleFile, shouldFetchModule } from './resolve-utils';
+import { fetchModuleSync } from '../fetch/fetch-module-sync';
+import { getCommonDirUrl, getRemotePackageJsonUrl, getNodeModuleFetchUrl, packageVersions } from '../fetch/fetch-utils';
+import { isString, IS_WEB_WORKER_ENV, normalizeFsPath } from '@utils';
+import { basename, dirname } from 'path';
+import resolve from 'resolve';
+export const resolveRemoteModuleIdSync = (config, inMemoryFs, opts) => {
+    const packageJson = resolveRemotePackageJsonSync(config, inMemoryFs, opts.moduleId);
+    if (packageJson) {
+        const resolveModuleSyncOpts = Object.assign(Object.assign({}, opts), { exts: ['.js', '.mjs'] });
+        const resolvedUrl = resolveModuleIdSync(config.sys, inMemoryFs, resolveModuleSyncOpts);
+        if (typeof resolvedUrl === 'string') {
+            return {
+                resolvedUrl,
+                packageJson,
+            };
+        }
+    }
+    return null;
+};
+const resolveRemotePackageJsonSync = (config, inMemoryFs, moduleId) => {
+    const filePath = getNodeModulePath(config.rootDir, moduleId, 'package.json');
+    let pkgJson = inMemoryFs.readFileSync(filePath);
+    if (!isString(pkgJson) && IS_WEB_WORKER_ENV) {
+        const url = getRemotePackageJsonUrl(config.sys, moduleId);
+        pkgJson = fetchModuleSync(config.sys, inMemoryFs, packageVersions, url, filePath);
+    }
+    if (typeof pkgJson === 'string') {
+        try {
+            return JSON.parse(pkgJson);
+        }
+        catch (e) { }
+    }
+    return null;
+};
+export const resolveModuleIdSync = (sys, inMemoryFs, opts) => {
+    const resolverOpts = createCustomResolverSync(sys, inMemoryFs, opts.exts);
+    resolverOpts.basedir = dirname(opts.containingFile);
+    resolverOpts.packageFilter = opts.packageFilter;
+    const resolvedModule = resolve.sync(opts.moduleId, resolverOpts);
+    return resolvedModule;
+};
+export const createCustomResolverSync = (sys, inMemoryFs, exts) => {
+    return {
+        isFile(filePath) {
+            const fsFilePath = normalizeFsPath(filePath);
+            const stat = inMemoryFs.statSync(fsFilePath);
+            if (stat.isFile) {
+                return true;
+            }
+            if (shouldFetchModule(fsFilePath)) {
+                const endsWithExt = exts.some(ext => fsFilePath.endsWith(ext));
+                if (!endsWithExt) {
+                    return false;
+                }
+                const url = getNodeModuleFetchUrl(sys, packageVersions, fsFilePath);
+                const content = fetchModuleSync(sys, inMemoryFs, packageVersions, url, fsFilePath);
+                return typeof content === 'string';
+            }
+            return false;
+        },
+        isDirectory(dirPath) {
+            const fsDirPath = normalizeFsPath(dirPath);
+            const stat = inMemoryFs.statSync(fsDirPath);
+            if (stat.isDirectory) {
+                return true;
+            }
+            if (shouldFetchModule(fsDirPath)) {
+                if (basename(fsDirPath) === 'node_modules') {
+                    // just the /node_modules directory
+                    inMemoryFs.sys.mkdirSync(fsDirPath);
+                    inMemoryFs.clearFileCache(fsDirPath);
+                    return true;
+                }
+                if (isCommonDirModuleFile(fsDirPath)) {
+                    // don't bother seeing if it's a directory if it has a common file extension
+                    return false;
+                }
+                const checkFileExists = (fileName) => {
+                    const url = getCommonDirUrl(sys, packageVersions, fsDirPath, fileName);
+                    const filePath = getCommonDirName(fsDirPath, fileName);
+                    const content = fetchModuleSync(sys, inMemoryFs, packageVersions, url, filePath);
+                    return isString(content);
+                };
+                return COMMON_DIR_FILENAMES.some(checkFileExists);
+            }
+            return false;
+        },
+        readFileSync(p) {
+            const data = inMemoryFs.readFileSync(p);
+            if (isString(data)) {
+                return data;
+            }
+            throw new Error(`file not found: ${p}`);
+        },
+        extensions: exts,
+    };
+};

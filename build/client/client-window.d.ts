@@ -1,0 +1,11 @@
+import * as d from '../declarations';
+export declare const win: Window;
+export declare const CSS: any;
+export declare const doc: Document;
+export declare const H: HTMLElement;
+export declare const plt: d.PlatformRuntime;
+export declare const supportsShadow: boolean;
+export declare const supportsListenerOptions: boolean;
+export declare const promiseResolve: (v?: any) => Promise<any>;
+export declare const supportsConstructibleStylesheets: boolean;
+export { H as HTMLElement };

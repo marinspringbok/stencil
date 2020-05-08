@@ -1,0 +1,82 @@
+import { CLASS_DECORATORS_TO_REMOVE, MEMBER_DECORATORS_TO_REMOVE } from './decorators-constants';
+import { componentDecoratorToStatic } from './component-decorator';
+import { elementDecoratorsToStatic } from './element-decorator';
+import { eventDecoratorsToStatic } from './event-decorator';
+import { listenDecoratorsToStatic } from './listen-decorator';
+import { isDecoratorNamed } from './decorator-utils';
+import { methodDecoratorsToStatic } from './method-decorator';
+import { propDecoratorsToStatic } from './prop-decorator';
+import { stateDecoratorsToStatic } from './state-decorator';
+import { watchDecoratorsToStatic } from './watch-decorator';
+import ts from 'typescript';
+export const convertDecoratorsToStatic = (config, diagnostics, typeChecker) => {
+    return transformCtx => {
+        const visit = (node) => {
+            if (ts.isClassDeclaration(node)) {
+                return visitClassDeclaration(config, diagnostics, typeChecker, node);
+            }
+            return ts.visitEachChild(node, visit, transformCtx);
+        };
+        return tsSourceFile => {
+            return ts.visitEachChild(tsSourceFile, visit, transformCtx);
+        };
+    };
+};
+export const visitClassDeclaration = (config, diagnostics, typeChecker, classNode) => {
+    if (!classNode.decorators) {
+        return classNode;
+    }
+    const componentDecorator = classNode.decorators.find(isDecoratorNamed('Component'));
+    if (!componentDecorator) {
+        return classNode;
+    }
+    const decoratedMembers = classNode.members.filter(member => Array.isArray(member.decorators) && member.decorators.length > 0);
+    const newMembers = removeStencilDecorators(Array.from(classNode.members));
+    // parser component decorator (Component)
+    componentDecoratorToStatic(config, typeChecker, diagnostics, classNode, newMembers, componentDecorator);
+    // parse member decorators (Prop, State, Listen, Event, Method, Element and Watch)
+    const watchable = new Set();
+    if (decoratedMembers.length > 0) {
+        propDecoratorsToStatic(diagnostics, decoratedMembers, typeChecker, watchable, newMembers);
+        stateDecoratorsToStatic(diagnostics, decoratedMembers, typeChecker, watchable, newMembers);
+        eventDecoratorsToStatic(diagnostics, decoratedMembers, typeChecker, newMembers);
+        methodDecoratorsToStatic(config, diagnostics, classNode, decoratedMembers, typeChecker, newMembers);
+        elementDecoratorsToStatic(diagnostics, decoratedMembers, typeChecker, newMembers);
+        watchDecoratorsToStatic(config, diagnostics, decoratedMembers, watchable, newMembers);
+        listenDecoratorsToStatic(diagnostics, decoratedMembers, newMembers);
+    }
+    return ts.updateClassDeclaration(classNode, removeDecorators(classNode, CLASS_DECORATORS_TO_REMOVE), classNode.modifiers, classNode.name, classNode.typeParameters, classNode.heritageClauses, newMembers);
+};
+const removeStencilDecorators = (classMembers) => {
+    return classMembers.map(m => {
+        const currentDecorators = m.decorators;
+        const newDecorators = removeDecorators(m, MEMBER_DECORATORS_TO_REMOVE);
+        if (currentDecorators !== newDecorators) {
+            if (ts.isMethodDeclaration(m)) {
+                return ts.updateMethod(m, newDecorators, m.modifiers, m.asteriskToken, m.name, m.questionToken, m.typeParameters, m.parameters, m.type, m.body);
+            }
+            else if (ts.isPropertyDeclaration(m)) {
+                return ts.updateProperty(m, newDecorators, m.modifiers, m.name, m.questionToken, m.type, m.initializer);
+            }
+            else {
+                console.log('unknown class node');
+            }
+        }
+        return m;
+    });
+};
+const removeDecorators = (node, decoratorNames) => {
+    if (node.decorators) {
+        const updatedDecoratorList = node.decorators.filter(dec => {
+            const name = ts.isCallExpression(dec.expression) && ts.isIdentifier(dec.expression.expression) && dec.expression.expression.text;
+            return !decoratorNames.has(name);
+        });
+        if (updatedDecoratorList.length === 0) {
+            return undefined;
+        }
+        else if (updatedDecoratorList.length !== node.decorators.length) {
+            return ts.createNodeArray(updatedDecoratorList);
+        }
+    }
+    return node.decorators;
+};

@@ -1,0 +1,10 @@
+import * as d from '../../declarations';
+export declare const filesChanged: (buildCtx: d.BuildCtx) => string[];
+export declare const scriptsAdded: (buildCtx: d.BuildCtx) => string[];
+export declare const scriptsDeleted: (buildCtx: d.BuildCtx) => string[];
+export declare const hasScriptChanges: (buildCtx: d.BuildCtx) => boolean;
+export declare const hasStyleChanges: (buildCtx: d.BuildCtx) => boolean;
+export declare const isScriptExt: (ext: string) => boolean;
+export declare const isStyleExt: (ext: string) => boolean;
+export declare const hasHtmlChanges: (config: d.Config, buildCtx: d.BuildCtx) => boolean;
+export declare const updateCacheFromRebuild: (compilerCtx: d.CompilerCtx, buildCtx: d.BuildCtx) => void;
