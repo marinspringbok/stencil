@@ -22,7 +22,6 @@ dist/
 
 # submodule packages
 /build-conditionals
-/cli
 /compiler
 /hydrate
 /dev-server
